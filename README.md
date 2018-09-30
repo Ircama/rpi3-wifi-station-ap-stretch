@@ -154,7 +154,7 @@ Add the following:
 
     DAEMON_CONF="/etc/hostapd/hostapd.conf"
 
-## Bridge AP to cient side
+## Bridge AP to client side
 
 This is optional.  If you do this step, then someone connected to the AP side can browse the internet through the client side.
 
