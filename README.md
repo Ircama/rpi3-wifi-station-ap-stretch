@@ -1,13 +1,13 @@
 # RASPBERRY PI - WIFI STATION+AP
 
-Running the Raspberry Pi 3 as a Wifi client (station) and access point (ap) from the single built-in wifi.
+Running the Raspberry Pi as a Wifi client (station) and access point (ap) from the single built-in wifi.
 
 Its been written about before, but this way is better.  The access point device is created before networking
 starts (using udev) and there is no need to run anything from `/etc/rc.local`.  No reboot, no scripts.
 
 ## Use Cases
 
-The Rpi 3 wifi chipset can support running an access point and a station function simultaneously.
+The Raspberry Pi 3 wifi chipset can support running an access point and a station function simultaneously.
 
 Also the Raspberry Pi Zero W accepts this procedure with the internal Wifi device, without external boards.
 
