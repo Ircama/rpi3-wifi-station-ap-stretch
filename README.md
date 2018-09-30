@@ -7,9 +7,12 @@ starts (using udev) and there is no need to run anything from `/etc/rc.local`.  
 
 ## Use Cases
 
-The Rpi 3 wifi chipset can support running an access point and a station function simultaneously.  One
-use case is a device that connects to the cloud (the station, via a user's home wifi network) but
-that needs an admin interface (the access point) to configure the network.  The user powers on the
+The Rpi 3 wifi chipset can support running an access point and a station function simultaneously.
+
+Also the Raspberry Pi Zero W accepts this procedure with the internal Wifi device, without external boards.
+
+One use case is a device that connects to the cloud (the *station*, via a user's home wifi network) but
+that needs an admin interface (the *access point*) to configure the network.  The user powers on the
 device, then logs into the access point using a specified SSID/password.  The user runs a browser
 and connects to the access point IP address (or hostname), which is running a web server to configure
 the station network (the user's wifi).
@@ -20,80 +23,110 @@ guests.  When the party's over, change the access point password.
 
 ## /etc/network/interfaces.d/ap
 
-    allow-hotplug uap0
-    auto uap0
-    iface uap0 inet static
-        address 10.3.141.1
-        netmask 255.255.255.0
+```sh
+sudo vi /etc/network/interfaces.d/ap
+```
 
-## /etc/udev/rules.d/90-wireless.rules 
-
-    ACTION=="add", SUBSYSTEM=="ieee80211", KERNEL=="phy0", \
-        RUN+="/sbin/iw phy %k interface add uap0 type __ap"
-
-## /lib/dhcpcd/dhcpcd-hooks/10-wpa_supplicant
+Then add these lines:
 
 ```sh
-if [ -z "$wpa_supplicant_conf" ]; then
-	for x in \
-		/etc/wpa_supplicant/wpa_supplicant-"$interface".conf \
-		/etc/wpa_supplicant/wpa_supplicant.conf \
-		/etc/wpa_supplicant-"$interface".conf \
-		/etc/wpa_supplicant.conf \
-	; do
-		if [ -s "$x" ]; then
-			wpa_supplicant_conf="$x"
-			break
-		fi
-	done
-fi
-: ${wpa_supplicant_conf:=/etc/wpa_supplicant.conf}
-
-if [ "$ifwireless" = "1" ] && \
-    type wpa_supplicant >/dev/null 2>&1 && \
-    type wpa_cli >/dev/null 2>&1
-then
-	if [ "$reason" = "IPV4LL" ]; then
-		wpa_supplicant -B -iwlan0 -f/var/log/wpa_supplicant.log -c/etc/wpa_supplicant/wpa_supplicant.conf
-	fi
-fi
+auto uap0
+iface uap0 inet static
+  address 192.168.50.1
+  netmask 255.255.255.0
 ```
+
+## /etc/network/interfaces
+
+```sh
+sudo vi /etc/network/interfaces
+```
+
+Then check this content:
+
+```
+# interfaces(5) file used by ifup(8) and ifdown(8)
+
+# Please note that this file is written to be used with dhcpcd
+# For static IP, consult /etc/dhcpcd.conf and 'man dhcpcd.conf'
+
+# Include files from /etc/network/interfaces.d:
+source-directory /etc/network/interfaces.d
+
+allow-hotplug wlan0
+iface wlan0 inet dhcp
+  pre-up sleep 10
+  wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+```
+
+## /etc/udev/rules.d/90-wireless.rules
+
+```sh
+sudo vi /etc/udev/rules.d/90-wireless.rules
+```
+
+Then add these lines:
+
+```
+ACTION=="add", SUBSYSTEM=="ieee80211", KERNEL=="phy0", \
+    RUN+="/sbin/iw phy %k interface add uap0 type __ap"
+```
+
+## Manually invoke the rule.
+
+Execute the command below. This will also bring up the uap0 interface.
+
+```sh
+sudo /sbin/iw phy phy0 interface add uap0 type __ap
+```
+
+Note: when executed for the second time (or if the above rule is already active), the command returns with the following error message:
+
+    command failed: Device or resource busy (-16)
 
 ## Set up the client wifi (station) on wlan0.
 
 Create `/etc/wpa_supplicant/wpa_supplicant.conf`.  The contents depend on whether your home network is open, WEP or WPA.  It is
-probably WPA, and so should look like:
+probably WPA/WPA2 and so should look like:
 
-    ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-    country=US
-    
-    network={
-	    ssid="_ST_SSID_"
-	    psk="_ST_PASSWORD_"
-	    key_mgmt=WPA-PSK
-    }
+```
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+country=US
+
+network={
+    ssid="_ST_SSID_"
+    psk="_ST_PASSWORD_"
+    key_mgmt=WPA-PSK
+}
+```
 
 Replace `_ST_SSID_` with your home network SSID and `_ST_PASSWORD_` with your wifi password (in clear text).
 	
 ## Install the packages you need for DNS, Access Point and Firewall rules.
 
-    apt-get update
-	apt-get install -y hostapd dnsmasq iptables-persistent
+```sh
+apt-get update
+apt-get install -y hostapd dnsmasq iptables-persistent
+```
 
 ## /etc/dnsmasq.conf
+
+Add the following at the end of the file:
 
     interface=lo,uap0
     no-dhcp-interface=lo,wlan0
     bind-interfaces
+    domain-needed
+    bogus-priv
     server=8.8.8.8
-    dhcp-range=10.3.141.50,10.3.141.255,12h
+    dhcp-range=192.168.50.50,192.168.50.255,12h
 
 ## /etc/hostapd/hostapd.conf
 
     interface=uap0
     ssid=_AP_SSID_
     hw_mode=g
-    channel=6
+    channel=7
     macaddr_acl=0
     auth_algs=1
     ignore_broadcast_ssid=0
@@ -108,20 +141,39 @@ enough characters to be a legal password!  (8 characters minimum).
 
 ## /etc/default/hostapd
 
+Add the following:
+
     DAEMON_CONF="/etc/hostapd/hostapd.conf"
 
 ## Bridge AP to cient side
 
 This is optional.  If you do this step, then someone connected to the AP side can browse the internet through the client side.
 
-    echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
-    echo 1 > /proc/sys/net/ipv4/ip_forward
-	iptables -t nat -A POSTROUTING -s 10.3.141.0/24 ! -d 10.3.141.0/24 -j MASQUERADE
-    iptables-save > /etc/iptables/rules.v4
+Edit */etc/sysctl.conf* and uncomment *net.ipv4.ip_forward=1*. Then:
 
+```sh
+sudo echo 1 > /proc/sys/net/ipv4/ip_forward
+sudo iptables -t nat -A POSTROUTING -s 192.168.50.0/24 ! -d 192.168.50.0/24 -j MASQUERADE
+sudo iptables-save > /etc/iptables/rules.v4
+```
+
+Example of output of *iptables-save*:
+
+```
+*filter
+:INPUT ACCEPT [1479:117133]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [2332:441251]
+COMMIT
+*nat
+:PREROUTING ACCEPT [56:9429]
+:INPUT ACCEPT [54:8773]
+:OUTPUT ACCEPT [22:1546]
+:POSTROUTING ACCEPT [20:1387]
+-A POSTROUTING -s 192.168.50.0/24 ! -d 192.168.50.0/24 -j MASQUERADE
+COMMIT
+```
 
 ## REBOOT!
 
     reboot
-    
-
