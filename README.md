@@ -1,4 +1,4 @@
-# RASPBERRY PI 3 - WIFI STATION+AP
+# RASPBERRY PI - WIFI STATION+AP
 
 Running the Raspberry Pi 3 as a Wifi client (station) and access point (ap) from the single built-in wifi.
 
@@ -59,6 +59,8 @@ iface wlan0 inet dhcp
   wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
 ```
 
+Note: *pre-up sleep 10* avoids the *linkdown* remark of *wlan0* in *net route* output.
+
 ## /etc/udev/rules.d/90-wireless.rules
 
 ```sh
@@ -91,11 +93,18 @@ probably WPA/WPA2 and so should look like:
 
 ```
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
 country=US
 
 network={
     ssid="_ST_SSID_"
     psk="_ST_PASSWORD_"
+    key_mgmt=WPA-PSK
+}
+
+network={
+    ssid="_ST_SSID2_"
+    psk="_ST_PASSWORD2_"
     key_mgmt=WPA-PSK
 }
 ```
@@ -177,3 +186,62 @@ COMMIT
 ## REBOOT!
 
     reboot
+
+## Check configuration
+
+Check routing table:
+
+```sh
+ip route
+```
+
+Valid output:
+
+```
+default via 192.168.1.1 dev wlan0
+192.168.1.0/24 dev wlan0 proto kernel scope link src 192.168.1.140
+192.168.50.0/24 dev uap0 proto kernel scope link src 192.168.50.1
+```
+
+Check that *linkdown* is not present.
+Check that both *wlan0* and *uap0* are available, with valid IP interface and IP address ranges.
+
+Check interface configuration:
+
+```sh
+ifconfig
+```
+
+Valid output:
+
+```
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 27  bytes 1841 (1.7 KiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 27  bytes 1841 (1.7 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+uap0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.50.1  netmask 255.255.255.0  broadcast 192.168.50.255
+        inet6 fe80::ba27:ebff:fee3:11ad  prefixlen 64  scopeid 0x20<link>
+        ether b8:27:eb:e3:11:ad  txqueuelen 1000  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 31  bytes 4657 (4.5 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+wlan0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.1.140  netmask 255.255.255.0  broadcast 192.168.1.255
+        inet6 fe80::ba27:ebff:fee3:11ad  prefixlen 64  scopeid 0x20<link>
+        ether b8:27:eb:e3:11:ad  txqueuelen 1000  (Ethernet)
+        RX packets 2014  bytes 174203 (170.1 KiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 2768  bytes 611501 (597.1 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+```
+
+Check that both *wlan0* and *uap0* are available.
+Check the *inet* IP addresses.
